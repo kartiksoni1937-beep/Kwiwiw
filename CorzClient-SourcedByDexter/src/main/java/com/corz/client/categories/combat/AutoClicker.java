@@ -12,7 +12,6 @@ import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult.Type;
 import org.lwjgl.glfw.GLFW;
 import ai.auth.Module;
-import com.corz.client.categories.combat.SilentAim;
 import com.corz.client.utils.IconsPngType;
 
 public class AutoClicker extends Module {
@@ -32,21 +31,17 @@ public class AutoClicker extends Module {
    }
 
    private void swingOrAttack(boolean handSwingFlag) {
-      if (!SilentAim.tryAttackLockedTarget(false)) {
-         if (SilentAim.isTargetLocked()) {
+      if (!handSwingFlag && mc.crosshairTarget instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() instanceof LivingEntity livingEntity) {
+         if (!TimeInstanceUtils.canTimeMin(livingEntity)) {
             mc.player.swingHand(Hand.MAIN_HAND);
-         } else if (!handSwingFlag && mc.crosshairTarget instanceof EntityHitResult entityHitResult && entityHitResult.getEntity() instanceof LivingEntity livingEntity) {
-            if (!TimeInstanceUtils.canTimeMin(livingEntity)) {
-               mc.player.swingHand(Hand.MAIN_HAND);
-            } else if (ClientThreadUtils.canPassFlag(this, livingEntity)) {
-               TimeInstanceUtils.updateDequeArray();
-               mc.interactionManager.attackEntity(mc.player, livingEntity);
-               mc.player.swingHand(Hand.MAIN_HAND);
-               mc.player.resetTicksSinceLastAttack();
-            }
-         } else {
+         } else if (ClientThreadUtils.canPassFlag(this, livingEntity)) {
+            TimeInstanceUtils.updateDequeArray();
+            mc.interactionManager.attackEntity(mc.player, livingEntity);
             mc.player.swingHand(Hand.MAIN_HAND);
+            mc.player.resetTicksSinceLastAttack();
          }
+      } else {
+         mc.player.swingHand(Hand.MAIN_HAND);
       }
    }
 

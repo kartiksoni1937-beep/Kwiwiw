@@ -15,7 +15,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
-import com.corz.client.categories.combat.SilentAim;
 import com.corz.client.utils.EntityDamageUtils;
 
 public final class EntityPlayerUtilsGliding {
@@ -131,7 +130,7 @@ public final class EntityPlayerUtilsGliding {
       if (player == null || entity == null) {
          return false;
       } else {
-         return entity == SilentAim.getLockedHitTarget() ? true : canRangeTargeting(player, entity, stack, player.getRotationVector());
+         return canRangeTargeting(player, entity, stack, player.getRotationVector());
       }
    }
 

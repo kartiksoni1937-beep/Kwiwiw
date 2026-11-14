@@ -17,7 +17,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.corz.client.categories.bots.CrystalPvpBot;
 import com.corz.client.categories.bots.SwordPvpBot;
 import com.corz.client.categories.combat.HitBoxes;
-import com.corz.client.categories.combat.SilentAim;
 import com.corz.client.categories.bots.AutoBuilder;
 import com.corz.client.categories.movement.Freecam;
 import com.corz.client.categories.visuals.Freelook;
@@ -112,29 +111,23 @@ public class MixinEntity {
             Freecam.getInstance().handleClampAmount(changeLookValue, changeLookValue2);
             callbackInfo.cancel();
          } else {
-            SilentAim silentAim = (SilentAim)ModuleRegistry.getModule(SilentAim.class);
-            if (silentAim != null && silentAim.isSilentTurnRunning()) {
-               silentAim.applyRotationDelta(changeLookValue, changeLookValue2);
+            Freelook freelook = (Freelook)ModuleRegistry.getModule(Freelook.class);
+            if (freelook != null && freelook.isEnabled()) {
+               freelook.handleClampAmount(changeLookValue, changeLookValue2);
                callbackInfo.cancel();
             } else {
-               Freelook freelook = (Freelook)ModuleRegistry.getModule(Freelook.class);
-               if (freelook != null && freelook.isEnabled()) {
-                  freelook.handleClampAmount(changeLookValue, changeLookValue2);
+               if (AutoBuilder.isAggressiveBuilderActive()) {
+                  AutoBuilder.addMouseDelta(changeLookValue, changeLookValue2);
                   callbackInfo.cancel();
-               } else {
-                  if (AutoBuilder.isAggressiveBuilderActive()) {
-                     AutoBuilder.addMouseDelta(changeLookValue, changeLookValue2);
-                     callbackInfo.cancel();
-                  }
+               }
 
-                  if (!callbackInfo.isCancelled() && CrystalPvpBot.isWaitingPlayer()) {
-                     CrystalPvpBot.ignoreValues(changeLookValue, changeLookValue2);
-                     callbackInfo.cancel();
-                  }
+               if (!callbackInfo.isCancelled() && CrystalPvpBot.isWaitingPlayer()) {
+                  CrystalPvpBot.ignoreValues(changeLookValue, changeLookValue2);
+                  callbackInfo.cancel();
+               }
 
-                  if (!callbackInfo.isCancelled() && SwordPvpBot.isSwordBotActive()) {
-                     callbackInfo.cancel();
-                  }
+               if (!callbackInfo.isCancelled() && SwordPvpBot.isSwordBotActive()) {
+                  callbackInfo.cancel();
                }
             }
          }

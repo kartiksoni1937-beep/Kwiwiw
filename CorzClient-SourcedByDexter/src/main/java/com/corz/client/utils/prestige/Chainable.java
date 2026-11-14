@@ -1,0 +1,8 @@
+package com.corz.client.utils.prestige;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Chainable {
+}

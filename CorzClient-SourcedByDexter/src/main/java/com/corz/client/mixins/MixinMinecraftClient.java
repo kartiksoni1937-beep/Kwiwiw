@@ -1,6 +1,7 @@
 package com.corz.client.mixins;
 
 import com.corz.client.entity.ClientThreadUtils;
+import com.corz.client.categories.combat.SilentAim;
 import com.corz.client.render.FramebufferSimpleUtils;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -121,6 +122,18 @@ public class MixinMinecraftClient {
       }
    }
 
+   @Inject(
+      method = {"method_1590(Z)V"},
+      at = {@At("HEAD")},
+      cancellable = true
+   )
+   private void corzPrestigeSilentAimBlockBreaking(boolean breaking, CallbackInfo callbackInfo) {
+      SilentAim silentAim = (SilentAim)ModuleRegistry.getModule(SilentAim.class);
+      if (silentAim != null && silentAim.isEnabled() && silentAim.onHandleBlockBreaking()) {
+         callbackInfo.cancel();
+      }
+   }
+
    @ModifyVariable(
       method = {"method_1590(Z)V"},
       at = @At("HEAD"),
@@ -149,6 +162,12 @@ public class MixinMinecraftClient {
       cancellable = true
    )
    private void corzSilentAimAttack(CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
+      SilentAim silentAim = (SilentAim)ModuleRegistry.getModule(SilentAim.class);
+      if (silentAim != null && silentAim.isEnabled() && silentAim.onAttack()) {
+         callbackInfoReturnable.setReturnValue(true);
+         return;
+      }
+
       Boolean result = ClientThreadUtils.getMaxDeque();
       if (result != null) {
          callbackInfoReturnable.setReturnValue(result);

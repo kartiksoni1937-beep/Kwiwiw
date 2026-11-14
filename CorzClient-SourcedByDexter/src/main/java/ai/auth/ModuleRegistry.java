@@ -17,6 +17,7 @@ import com.corz.client.categories.bots.AutoElytraPilot;
 import com.corz.client.categories.bots.AutoTpaHere;
 import com.corz.client.categories.bots.CrystalPvpBot;
 import com.corz.client.utils.PlayerInputOverride;
+import com.corz.client.utils.prestige.PrestigeSupport;
 import com.corz.client.categories.bots.SwordPvpBot;
 import com.corz.client.categories.combat.AimAssist;
 import com.corz.client.categories.combat.AnchorMacro;
@@ -360,6 +361,8 @@ public class ModuleRegistry {
             return;
         }
         ExtUtils.updateFlagAction();
+        PrestigeSupport.frameDeltaTimer.tick();
+        PrestigeSupport.silentRotationManager.tick();
         ClientThreadUtils.updateOptionsTime();
         PlayerInputOverride.updateFlagTick();
         EntityDamageUtils.updateTimeInstance();

@@ -23,7 +23,7 @@ import org.lwjgl.glfw.GLFW;
 import com.corz.client.utils.KnockbackMath;
 import com.corz.client.utils.EntityDamageUtils;
 import ai.auth.Module;
-import com.corz.client.categories.combat.SilentAim;
+import com.corz.client.utils.prestige.PrestigeSupport;
 import com.corz.client.utils.ElytraAutoUtils;
 import com.corz.client.utils.IconsPngType;
 
@@ -132,7 +132,7 @@ public class AutoJumpReset extends Module implements ThreadClientHandlerHandle {
    }
 
    private boolean isFacingEnemyMutually(ClientPlayerEntity player) {
-      double yawSilent = SilentAim.getYawSilent();
+      double yawSilent = PrestigeSupport.getServerYaw();
 
       for (AbstractClientPlayerEntity abstractClientPlayerEntity : mc.world.getPlayers()) {
          if (abstractClientPlayerEntity != player

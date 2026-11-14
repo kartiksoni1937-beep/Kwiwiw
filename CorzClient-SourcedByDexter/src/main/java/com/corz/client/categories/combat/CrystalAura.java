@@ -75,7 +75,7 @@ import com.corz.client.utils.InventoryPlayer;
 import com.corz.client.utils.PlayerCrystalUtils;
 import ai.auth.Module;
 import ai.auth.ModuleRegistry;
-import com.corz.client.categories.combat.SilentAim;
+import com.corz.client.utils.prestige.PrestigeSupport;
 import com.corz.client.categories.combat.AnchorMacro;
 import com.corz.client.categories.combat.AutoInventoryTotem;
 import com.corz.client.categories.combat.SafeAnchor;
@@ -298,7 +298,7 @@ public class CrystalAura extends Module implements WeaknessGodApi {
    }
 
    private static boolean isRotationOutOfSync(ClientPlayerEntity clientPlayerEntity) {
-      return MathClampUtils.isClampApplied() ? true : clientPlayerEntity.getYaw() != SilentAim.getYawSilent() || clientPlayerEntity.getPitch() != SilentAim.getSilentPitch();
+      return MathClampUtils.isClampApplied() ? true : clientPlayerEntity.getYaw() != PrestigeSupport.getServerYaw() || clientPlayerEntity.getPitch() != PrestigeSupport.getServerPitch();
    }
 
    private boolean isValidTargetInRange(LivingEntity entity, double entityPosLimit, Vec3d vec, float entityPosValue) {
@@ -1207,7 +1207,7 @@ public class CrystalAura extends Module implements WeaknessGodApi {
             this.getPingDelayTicks(),
             MathClampUtils.getYaw(),
             MathClampUtils.getClamp(),
-            SilentAim.getYawSilent()
+            PrestigeSupport.getServerYaw()
          )
          : new Request(
             entity,
@@ -1268,7 +1268,7 @@ public class CrystalAura extends Module implements WeaknessGodApi {
 
    private LivingEntity getNearestTarget() {
       double crystalAuraValue = this.rangeSetting.getValue();
-      float yawSilent = SilentAim.getYawSilent();
+      float yawSilent = PrestigeSupport.getServerYaw();
       Vec3d eyePos = mc.player.getEyePos();
       if (this.currentTarget != null && this.isValidTargetInRange(this.currentTarget, crystalAuraValue, eyePos, yawSilent)) {
          return this.currentTarget;
@@ -1639,7 +1639,7 @@ public class CrystalAura extends Module implements WeaknessGodApi {
    }
 
    private float getReferenceYaw() {
-      return this.weakness == null ? SilentAim.getYawSilent() : mc.player.getYaw();
+      return this.weakness == null ? PrestigeSupport.getServerYaw() : mc.player.getYaw();
    }
 
    private void requestControllerSlot(int selectedSlot, long time) {

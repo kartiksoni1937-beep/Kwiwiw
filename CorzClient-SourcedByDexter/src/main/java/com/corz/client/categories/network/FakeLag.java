@@ -41,7 +41,7 @@ import net.minecraft.world.RaycastContext;
 import net.minecraft.world.RaycastContext.FluidHandling;
 import net.minecraft.world.RaycastContext.ShapeType;
 import org.joml.Matrix4f;
-import com.corz.client.categories.combat.SilentAim;
+import com.corz.client.utils.prestige.PrestigeSupport;
 import ai.auth.Module;
 import com.corz.client.utils.WeakReferenceHelper;
 import com.corz.client.utils.InventoryPlayer;
@@ -307,7 +307,7 @@ public class FakeLag extends Module {
 
    private int getRaycastPlayer() {
       Vec3d eyePos = mc.player.getEyePos();
-      Vec3d cosSin = MathClampUtils.getCosSin(SilentAim.getYawSilent(), SilentAim.getSilentPitch());
+      Vec3d cosSin = MathClampUtils.getCosSin(PrestigeSupport.getServerYaw(), PrestigeSupport.getServerPitch());
       Vec3d add = eyePos.add(cosSin.multiply(10.0));
       BlockHitResult raycast = mc.world.raycast(new RaycastContext(eyePos, add, ShapeType.COLLIDER, FluidHandling.NONE, mc.player));
       if (raycast != null && raycast.getType() != Type.MISS) {

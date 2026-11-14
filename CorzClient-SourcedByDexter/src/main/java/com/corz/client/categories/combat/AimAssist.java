@@ -32,7 +32,6 @@ import com.corz.client.categories.movement.Freecam;
 import com.corz.client.categories.visuals.Freelook;
 import ai.auth.Module;
 import ai.auth.ModuleRegistry;
-import com.corz.client.categories.combat.SilentAim;
 import com.corz.client.categories.combat.AnchorMacro;
 import com.corz.client.utils.WeaponStackChecks;
 import com.corz.client.utils.IconsPngType;
@@ -319,11 +318,7 @@ public class AimAssist extends Module {
 
    private boolean isAimAllowed() {
       if (!Freecam.isInstanceFlag() && !Freelook.isFlag()) {
-         if (ModuleRegistry.getModule(SilentAim.class) instanceof SilentAim silentAim
-            && silentAim.isEnabled()
-            && (silentAim.isSilentTurnRunning() || SilentAim.isTargetLocked())) {
-            return false;
-         } else if (ClientThreadUtils.isFlag6()) {
+         if (ClientThreadUtils.isFlag6()) {
             return false;
          } else if (ModuleRegistry.getModule(AnchorMacro.class) instanceof AnchorMacro anchorMacro && anchorMacro.isEnabled() && anchorMacro.isMacroInteracting()) {
             return false;

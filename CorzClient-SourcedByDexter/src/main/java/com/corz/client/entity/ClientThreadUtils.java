@@ -15,7 +15,6 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.math.Vec3d;
-import com.corz.client.categories.combat.SilentAim;
 import com.corz.client.utils.EntityDamageUtils;
 import ai.auth.Module;
 import ai.auth.ModuleRegistry;
@@ -354,15 +353,14 @@ public final class ClientThreadUtils {
       } else if (isFlag4()) {
          return Boolean.FALSE;
       } else if (!dequeActive && (!entityActive || obj == null && !clientThreadActive)) {
-         PlayerEntity playerEntity = obj == null ? SilentAim.getLockedHitTarget() : null;
-         Object obj2 = playerEntity != null ? playerEntity : getCrosshairEntity();
+         Object obj2 = getCrosshairEntity();
          Result pass = getPass(getItems(), obj, (Entity)obj2);
          if (pass == Result.BLOCK) {
             return Boolean.FALSE;
          } else if (pass == Result.HANDLED) {
             return Boolean.TRUE;
          } else {
-            return playerEntity != null && SilentAim.tryAttackLockedTarget(true) ? Boolean.TRUE : null;
+            return null;
          }
       } else {
          return Boolean.FALSE;

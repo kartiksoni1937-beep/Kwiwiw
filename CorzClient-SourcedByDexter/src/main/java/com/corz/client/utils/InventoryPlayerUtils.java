@@ -22,7 +22,6 @@ import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.EntityHitResult;
 import com.corz.client.categories.combat.AutoInventoryTotem;
-import com.corz.client.categories.combat.SilentAim;
 import ai.auth.Module;
 import ai.auth.ModuleRegistry;
 import com.corz.client.utils.InventoryPlayer;
@@ -308,7 +307,7 @@ public final class InventoryPlayerUtils {
    }
 
    private static boolean canRidingInstance(LivingEntity entity, boolean ridingFlag) {
-      if (ridingFlag && SilentAim.getLockedHitTarget() == entity) {
+      if (ridingFlag) {
          return true;
       } else {
          return inventoryPlayerMinecraftClie.attackCooldown <= 0 && !inventoryPlayerMinecraftClie.player.isRiding()

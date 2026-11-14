@@ -1,6 +1,8 @@
 package com.corz.client.mixins;
 
 import com.corz.client.world.MathClampUtils;
+import com.corz.client.utils.prestige.PrestigeSupport;
+import com.corz.client.utils.prestige.Rotation;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.option.GameOptions;
@@ -146,12 +148,18 @@ public class MixinClientPlayerEntity {
    private void corzSilentAimHead(CallbackInfo callbackInfo) {
       this.corzRotationSwapped = false;
       ClientPlayerEntity self = (ClientPlayerEntity)((net.minecraft.client.network.ClientPlayerEntity) (Object) (this));
-      boolean silent = MathClampUtils.isClampActive();
+      Rotation prestigeRotation = PrestigeSupport.silentRotationManager.getRotationForPacket();
+      boolean silent = prestigeRotation != null || MathClampUtils.isClampActive();
       if (silent) {
          this.corzRealYaw = self.getYaw();
          this.corzRealPitch = self.getPitch();
-         self.setYaw(MathClampUtils.getYaw());
-         self.setPitch(MathClampUtils.getClamp());
+         if (prestigeRotation != null) {
+            self.setYaw(prestigeRotation.getYaw());
+            self.setPitch(prestigeRotation.getPitch());
+         } else {
+            self.setYaw(MathClampUtils.getYaw());
+            self.setPitch(MathClampUtils.getClamp());
+         }
          this.corzRotationSwapped = true;
       }
    }
@@ -161,6 +169,7 @@ public class MixinClientPlayerEntity {
       at = {@At("RETURN")}
    )
    private void corzSilentAimReturn(CallbackInfo callbackInfo) {
+      PrestigeSupport.silentRotationManager.onMovementPacketSent();
       if (this.corzRotationSwapped) {
          ClientPlayerEntity self = (ClientPlayerEntity)((net.minecraft.client.network.ClientPlayerEntity) (Object) (this));
          self.setYaw(this.corzRealYaw);

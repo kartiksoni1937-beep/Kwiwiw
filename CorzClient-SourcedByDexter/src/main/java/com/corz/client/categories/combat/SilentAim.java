@@ -1,312 +1,318 @@
 package com.corz.client.categories.combat;
 
-import com.corz.client.config.ConfigSetting;
+import ai.auth.Module;
 import com.corz.client.config.BooleanSetting;
+import com.corz.client.config.ColorSetting;
+import com.corz.client.config.ConfigSetting;
 import com.corz.client.config.DoubleSetting;
-import com.corz.client.config.EnumSetting;
-import com.corz.client.entity.ClientThreadUtils;
-import com.corz.client.entity.EntityEyeUtils;
-import com.corz.client.entity.TimeInstanceUtils;
-import com.corz.client.world.ClampMath;
-import com.corz.client.world.MathClampUtils;
+import com.corz.client.utils.IconsPngType;
+import com.corz.client.utils.prestige.BlockUtil;
+import com.corz.client.utils.prestige.InventoryUtil;
+import com.corz.client.utils.prestige.MultiSetting;
+import com.corz.client.utils.prestige.PlayerInteractions;
+import com.corz.client.utils.prestige.PrestigeSupport;
+import com.corz.client.utils.prestige.Rotation;
+import com.corz.client.utils.prestige.RotationProvider;
+import com.corz.client.utils.prestige.RotationUtil;
+import com.corz.client.utils.prestige.TargetSelector;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.util.Hand;
+import net.minecraft.item.AxeItem;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.hit.HitResult.Type;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
-import org.lwjgl.glfw.GLFW;
-import ai.auth.Module;
-import ai.auth.ModuleRegistry;
-import com.corz.client.categories.combat.AnchorMacro;
-import com.corz.client.utils.DeltaAngle;
-import com.corz.client.utils.IconsPngType;
 
-public class SilentAim extends Module {
-   private float pitch;
-   private static volatile float lockedPitch;
-   private final ClampMath rotationHumanizer;
-   private float yaw;
-   private boolean silentTurnActive;
-   private final BooleanSetting humanizeSetting;
-   private final BooleanSetting visibilityCheck;
-   private final BooleanSetting hitTarget;
-   private static volatile float lockedYaw;
-   private final DoubleSetting rangeSetting = new DoubleSetting("Range", "Max distance to a target", 4.5, 2.0, 6.0, 0.1);
-   private static volatile boolean targetLocked;
-   private static volatile PlayerEntity lockedTarget;
-   private final DoubleSetting fovSetting = new DoubleSetting("FOV", "Only aim at players within this cone of your view", 90.0, 10.0, 180.0, 1.0);
-   private final EnumSetting rotationModeSetting;
-   private final EnumSetting aimPoint = new EnumSetting("Aim Point", "Where on the target to aim", "Neck", "Head", "Neck", "Body");
-   private final EnumSetting activation;
-   private float prevSilentPitch;
-   private final BooleanSetting revealPose;
-   private float prevSilentYaw;
+public class SilentAim extends Module implements RotationProvider {
+    private BooleanSetting playerOnly;
+    private BooleanSetting weaponOnly;
+    private BooleanSetting continuousTracking;
+    private DoubleSetting maxYaw;
+    private DoubleSetting maxPitch;
+    private MultiSetting aimPoints;
+    private BooleanSetting renderDot;
+    private DoubleSetting dotSize;
+    private ColorSetting dotColor;
+    private boolean hitPending = false;
+    private boolean sendingAttack = false;
+    private Vec3d lastAimPoint = null;
+    private Entity pendingTarget = null;
+    private static final String[] AIM_POINT_NAMES = new String[]{"Head", "Neck", "Body", "Arms", "Thighs", "Legs", "Feet"};
+    private static final double[] AIM_POINT_HEIGHTS = new double[]{0.95, 0.85, 0.7, 0.65, 0.35, 0.2, 0.05};
 
-   public SilentAim() {
-      super("Silent Aim", IconsPngType.COMBAT);
-      this.visibilityCheck = new BooleanSetting("Visibility Check", "Only aim at players you can see", true);
-      this.activation = new EnumSetting("Activation", "When the aim engages", "Always", "Always", "On Click");
-      this.rotationModeSetting = new EnumSetting("Rotation", "How the aim is applied", "Silent Turn", "Silent Turn", "Body", "Packet", "Move Fix");
-      this.humanizeSetting = new BooleanSetting(
-         "Humanize",
-         "Ease onto the target with mouse-like, sensitivity-quantized rotation steps so aim-analysis anticheats (Vulcan) see human aim instead of a perfect lock",
-         true
-      );
-      this.revealPose = new BooleanSetting(
-         "Reveal Pose", "In third person (e.g. with Freelook) turn your on-screen body toward the target so you can watch the aim lock on", true
-      );
-      this.hitTarget = new BooleanSetting(
-         "Hit Target", "When you left-click, hit the locked target within reach instead of whatever your crosshair is on", true
-      );
-      this.rotationHumanizer = new ClampMath();
-      this.addSettings(
-         new ConfigSetting[]{
-            this.rangeSetting,
-            this.fovSetting,
-            this.aimPoint,
-            this.visibilityCheck,
-            this.activation,
-            this.rotationModeSetting,
-            this.humanizeSetting,
-            this.revealPose,
-            this.hitTarget
-         }
-      );
-   }
+    public SilentAim() {
+        super("Silent Aim", IconsPngType.COMBAT);
+        this.playerOnly = new BooleanSetting("Player Only", "Aims at players only.", true);
+        this.weaponOnly = new BooleanSetting("Weapon Only", "Runs only while holding a sword or axe.", false);
+        this.continuousTracking = new BooleanSetting(
+            "Continuous Tracking", "Tracks the closest target every tick instead of only snapping on hit.", false
+        );
+        this.maxYaw = new DoubleSetting(
+            "Max Yaw", "Caps silent aim at this yaw offset from your view (degrees).", 180.0, 0.0, 180.0, 0.1
+        );
+        this.maxPitch = new DoubleSetting(
+            "Max Pitch",
+            "Caps silent aim at this pitch offset from your view (degrees). Pitch is intrinsically clamped to \u00b190 so no seam-wrap folding is needed \u2014 a plain absolute delta. Default 90 is a no-op ceiling; tighten to reject aim vectors that would ship a suspicious head-snap up/down (e.g. crystalled feet directly below the crosshair).",
+            90.0,
+            0.0,
+            90.0,
+            0.1
+        );
+        this.renderDot = new BooleanSetting("Render Dot", "Draws a dot where the silent aim points.", false);
+        this.dotSize = new DoubleSetting("Dot Size", "Sets the aim dot's radius (blocks).", 0.1, 0.02, 0.5, 0.01);
+        this.dotColor = new ColorSetting("Dot Color", "Sets the aim dot color.", 0xFFFF4040);
+        this.aimPoints = new MultiSetting(
+            "Aim Points",
+            AIM_POINT_NAMES.clone(),
+            new boolean[]{true, false, true, false, false, false, false}
+        );
+        this.addSettings(
+            new ConfigSetting[]{
+                this.playerOnly,
+                this.weaponOnly,
+                this.continuousTracking,
+                this.maxYaw,
+                this.maxPitch,
+                this.renderDot,
+                this.dotSize,
+                this.dotColor
+            }
+        );
+    }
 
-   public static float getLockedPitch() {
-      return lockedPitch;
-   }
+    private boolean isKillAuraActive() {
+        return false;
+    }
 
-   @Override
-   protected void onCameraAngle(DeltaAngle deltaAngle) {
-      if (this.silentTurnActive) {
-         float tickDelta = deltaAngle.getTickDelta();
-         deltaAngle.setAngleDegrees(MathHelper.lerp(tickDelta, this.prevSilentYaw, this.yaw));
-         deltaAngle.setLerp(MathHelper.lerp(tickDelta, this.prevSilentPitch, this.pitch));
-         deltaAngle.updateFlag();
-      }
-   }
+    private boolean exceedsAngleLimits(Rotation rotation) {
+        return Math.abs(RotationUtil.wrapDegrees(rotation.getYaw() - mc.player.getYaw())) > this.maxYaw.getValue()
+            || Math.abs(rotation.getPitch() - mc.player.getPitch()) > this.maxPitch.getValue();
+    }
 
-   private static boolean isWithinInteractionRange(Entity entity) {
-      double entityInteractionRange = mc.player.getEntityInteractionRange();
-      Vec3d eyePos = mc.player.getEyePos();
-      Box boundingBox = entity.getBoundingBox();
-      double maxMinX = Math.max(boundingBox.minX, Math.min(eyePos.x, boundingBox.maxX));
-      double maxMinY = Math.max(boundingBox.minY, Math.min(eyePos.y, boundingBox.maxY));
-      double maxMinZ = Math.max(boundingBox.minZ, Math.min(eyePos.z, boundingBox.maxZ));
-      return eyePos.squaredDistanceTo(maxMinX, maxMinY, maxMinZ) <= entityInteractionRange * entityInteractionRange;
-   }
+    private Entity findTarget() {
+        Entity candidate = this.playerOnly.isEnabled() ? TargetSelector.getClosestEnemy() : TargetSelector.getClosestEntity();
+        return (Entity)(candidate != null
+                && candidate.isAlive()
+                && !(mc.player.distanceTo(candidate) > 3.0F)
+                && mc.player.canSee(candidate)
+                && !BlockUtil.isCobwebInLineOfSight(candidate)
+            ? candidate
+            : null);
+    }
 
-   public static PlayerEntity getLockedHitTarget() {
-      SilentAim silentAim = (SilentAim)ModuleRegistry.getModule(SilentAim.class);
-      if (silentAim != null && silentAim.isEnabled() && silentAim.hitTarget.isEnabled()) {
-         PlayerEntity entity = lockedTarget;
-         if (entity == null || !entity.isAlive() || mc.player == null || mc.interactionManager == null) {
+    public boolean onAttack() {
+        return this.onSwingHandPre() || this.onMouseButton(0, 1);
+    }
+
+    public boolean onSwingHandPre() {
+        if (mc.currentScreen == null && mc.isWindowFocused()) {
+            if (this.sendingAttack) {
+                return false;
+            } else if (!this.isKillAuraActive()) {
+                if (InventoryUtil.isSword(mc.player.getMainHandStack())
+                    || mc.player.getMainHandStack().getItem() instanceof AxeItem
+                    || InventoryUtil.isMace(mc.player.getMainHandStack())
+                    || !this.weaponOnly.isEnabled()) {
+                    HitResult crosshairHit = mc.crosshairTarget;
+                    if (crosshairHit != null
+                        && (
+                            crosshairHit.getType() == Type.MISS
+                                || crosshairHit.getType() == Type.BLOCK && InventoryUtil.isSword(mc.player.getMainHandStack())
+                        )) {
+                        Entity target = this.findTarget();
+                        if (target != null) {
+                            if (!this.exceedsAngleLimits(RotationUtil.getRotationTo(
+                                this.getAimPoint(target)
+                            ))) {
+                                this.pendingTarget = target;
+                                this.hitPending = true;
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public Rotation provideRotation() {
+        Entity target = this.pendingTarget;
+        this.pendingTarget = null;
+        if (target != null && !target.isAlive()) {
+            target = null;
+        }
+
+        if (this.isKillAuraActive()) {
+            this.hitPending = false;
+            this.lastAimPoint = null;
             return null;
-         } else if (!isWithinInteractionRange(entity)) {
-            return null;
-         } else if (mc.crosshairTarget != null && mc.crosshairTarget.getType() == Type.BLOCK) {
-            return null;
-         } else if (TimeInstanceUtils.isInteractionBreaking()) {
-            return null;
-         } else {
-            Vec3d eyePos = mc.player.getEyePos();
-            Vec3d add = eyePos.add(MathClampUtils.getCosSin(lockedYaw, lockedPitch).multiply(mc.player.getEntityInteractionRange()));
-            return entity.getBoundingBox().raycast(eyePos, add).isEmpty() ? null : entity;
-         }
-      } else {
-         return null;
-      }
-   }
+        } else {
+            if (this.continuousTracking.isEnabled()) {
+                if (target == null) {
+                    target = this.findTarget();
+                }
 
-   private void commitSilentRotation() {
-      if (this.silentTurnActive) {
-         this.silentTurnActive = false;
-         if (mc.player != null) {
-            mc.player.setYaw(this.yaw);
-            mc.player.setPitch(this.pitch);
-            mc.player.lastYaw = this.yaw;
-            mc.player.lastPitch = this.pitch;
-         }
-      }
-   }
+                Rotation trackingRotation = target != null ? this.computeAimRotation(target) : null;
+                if (trackingRotation != null) {
+                    this.lastAimPoint = this.getAimPoint(target);
+                    if (this.hitPending) {
+                        this.hitPending = false;
+                        this.attackTarget(target);
+                    }
 
-   public static boolean tryAttackLockedTarget(boolean attackHandFlag) {
-      PlayerEntity fixCrosshair = getLockedHitTarget();
-      if (fixCrosshair == null) {
-         return false;
-      } else {
-         if (attackHandFlag) {
-            TimeInstanceUtils.handleMinTime(fixCrosshair);
-         } else {
-            if (!TimeInstanceUtils.canTimeMin(fixCrosshair)) {
-               return false;
+                    return trackingRotation;
+                }
+
+                this.lastAimPoint = null;
             }
 
-            if (!ClientThreadUtils.canPassFlag(ModuleRegistry.getModule(SilentAim.class), fixCrosshair)) {
-               return true;
-            }
-
-            TimeInstanceUtils.updateDequeArray();
-         }
-
-         mc.interactionManager.attackEntity(mc.player, fixCrosshair);
-         mc.player.swingHand(Hand.MAIN_HAND);
-         mc.player.resetTicksSinceLastAttack();
-         return true;
-      }
-   }
-
-   private Vec3d getAimPointPos(PlayerEntity player) {
-      double x = player.getX();
-      double y = player.getY();
-      double z = player.getZ();
-      double height = player.getHeight();
-      String formatText = this.aimPoint.getCurrentOption();
-
-      return switch (formatText) {
-         case "Head" -> new Vec3d(x, y + height - 0.1, z);
-         case "Body" -> new Vec3d(x, y + height * 0.5, z);
-         default -> new Vec3d(x, y + height - 0.35, z);
-      };
-   }
-
-   @Override
-   protected void onDisable() {
-      targetLocked = false;
-      lockedTarget = null;
-      this.rotationHumanizer.updateFlag();
-      this.commitSilentRotation();
-   }
-
-   public void applyRotationDelta(double clampYawValue, double clampYawValue2) {
-      this.prevSilentYaw = this.yaw;
-      this.prevSilentPitch = this.pitch;
-      this.yaw += (float)(clampYawValue * 0.15);
-      this.pitch = MathHelper.clamp(this.pitch + (float)(clampYawValue2 * 0.15), -90.0F, 90.0F);
-   }
-
-   private void beginSilentTurn() {
-      this.yaw = this.prevSilentYaw = mc.player.getYaw();
-      this.pitch = this.prevSilentPitch = mc.player.getPitch();
-      this.silentTurnActive = true;
-   }
-
-   public static boolean isRevealPoseActive() {
-      SilentAim silentAim = (SilentAim)ModuleRegistry.getModule(SilentAim.class);
-      return silentAim != null && silentAim.isEnabled() && targetLocked && silentAim.revealPose.isEnabled();
-   }
-
-   public static float getSilentPitch() {
-      SilentAim silentAim = (SilentAim)ModuleRegistry.getModule(SilentAim.class);
-      if (silentAim != null && silentAim.isEnabled() && silentAim.silentTurnActive) {
-         return silentAim.pitch;
-      } else {
-         return mc.player != null ? mc.player.getPitch() : 0.0F;
-      }
-   }
-
-   private PlayerEntity findBestTarget() {
-      double silentAimValue = this.fovSetting.getValue() / 2.0;
-      PlayerEntity next = null;
-      double silentAimLimit = Double.MAX_VALUE;
-
-      for (PlayerEntity playerEntity : EntityEyeUtils.getInstanceEye(this.rangeSetting.getValue())) {
-         Vec3d headBody = this.getAimPointPos(playerEntity);
-         double wrapDegrees = EntityEyeUtils.getWrapDegrees(headBody, this.yaw, this.pitch);
-         if (!(wrapDegrees > silentAimValue) && (!this.visibilityCheck.isEnabled() || EntityEyeUtils.canInstanceSquared(headBody)) && wrapDegrees < silentAimLimit) {
-            silentAimLimit = wrapDegrees;
-            next = playerEntity;
-         }
-      }
-
-      return next;
-   }
-
-   private boolean isActivationHeld() {
-      return this.activation.getCurrentOption().equals("Always") ? true : GLFW.glfwGetMouseButton(mc.getWindow().getHandle(), 0) == 1;
-   }
-
-   public boolean isSilentTurnRunning() {
-      return this.isEnabled() && this.silentTurnActive;
-   }
-
-   private boolean isRotationBlocked() {
-      return ClientThreadUtils.isFlag6() ? true : ModuleRegistry.getModule(AnchorMacro.class) instanceof AnchorMacro anchorMacro && anchorMacro.isMacroInteracting();
-   }
-
-   public static boolean isTargetLocked() {
-      return targetLocked;
-   }
-
-   @Override
-   public void onReset() {
-      targetLocked = false;
-      lockedTarget = null;
-      if (mc.player != null && mc.world != null && mc.currentScreen == null) {
-         if (!this.silentTurnActive) {
-            this.yaw = mc.player.getYaw();
-            this.pitch = mc.player.getPitch();
-         }
-
-         if (this.isRotationBlocked()) {
-            this.commitSilentRotation();
-            this.rotationHumanizer.updateFlag();
-         } else if (!this.isActivationHeld()) {
-            this.commitSilentRotation();
-            this.rotationHumanizer.updateFlag();
-         } else {
-            PlayerEntity bestTarget = this.findBestTarget();
-            if (bestTarget == null) {
-               this.commitSilentRotation();
-               this.rotationHumanizer.updateFlag();
+            if (!this.hitPending) {
+                return null;
             } else {
-               lockedTarget = bestTarget;
-               Vec3d headBody = this.getAimPointPos(bestTarget);
-               float[] wrapDegrees = MathClampUtils.getWrapDegrees(mc.player.getEyePos(), headBody);
-               if (this.humanizeSetting.isEnabled()) {
-                  wrapDegrees = this.rotationHumanizer.getClampRandom(wrapDegrees[0], wrapDegrees[1]);
-               } else {
-                  this.rotationHumanizer.updateFlag();
-               }
-
-               lockedYaw = wrapDegrees[0];
-               lockedPitch = wrapDegrees[1];
-               targetLocked = true;
-               String formatText = this.rotationModeSetting.getCurrentOption();
-               if (formatText.equals("Silent Turn")) {
-                  if (!this.silentTurnActive) {
-                     this.beginSilentTurn();
-                  }
-
-                  MathClampUtils.handle(this, lockedYaw, lockedPitch, 50, false);
-               } else {
-                  this.commitSilentRotation();
-                  boolean iIiFlag = !formatText.equals("Body");
-                  boolean equals = formatText.equals("Move Fix");
-                  MathClampUtils.handle(this, lockedYaw, lockedPitch, 50, iIiFlag, equals);
-               }
+                this.hitPending = false;
+                if (target == null) {
+                    return null;
+                } else {
+                    Rotation hitRotation = this.computeAimRotation(target);
+                    if (hitRotation == null) {
+                        return null;
+                    } else {
+                        this.lastAimPoint = this.getAimPoint(target);
+                        this.attackTarget(target);
+                        return hitRotation;
+                    }
+                }
             }
-         }
-      } else {
-         this.commitSilentRotation();
-         this.rotationHumanizer.updateFlag();
-      }
-   }
+        }
+    }
 
-   public static float getLockedYaw() {
-      return lockedYaw;
-   }
+    private Rotation computeAimRotation(Entity target) {
+        if (!InventoryUtil.isSword(mc.player.getMainHandStack())
+            && !(mc.player.getMainHandStack().getItem() instanceof AxeItem)
+            && !InventoryUtil.isMace(mc.player.getMainHandStack())
+            && this.weaponOnly.isEnabled()) {
+            return null;
+        } else {
+            HitResult crosshairHit = mc.crosshairTarget;
+            if (this.continuousTracking.isEnabled()
+                || crosshairHit != null
+                    && (crosshairHit.getType() == Type.MISS || crosshairHit.getType() == Type.BLOCK && InventoryUtil.isSword(mc.player.getMainHandStack()))) {
+                if (target != null && target.isAlive() && !(mc.player.distanceTo(target) > 3.0F) && mc.player.canSee(target) && !BlockUtil.isCobwebInLineOfSight(target)) {
+                    Rotation rotation = RotationUtil.getRotationTo(this.getAimPoint(target));
+                    return this.exceedsAngleLimits(rotation) ? null : rotation;
+                } else {
+                    return null;
+                }
+            } else {
+                return null;
+            }
+        }
+    }
 
-   public static float getYawSilent() {
-      SilentAim silentAim = (SilentAim)ModuleRegistry.getModule(SilentAim.class);
-      if (silentAim != null && silentAim.isEnabled() && silentAim.silentTurnActive) {
-         return silentAim.yaw;
-      } else {
-         return mc.player != null ? mc.player.getYaw() : 0.0F;
-      }
-   }
+    private Vec3d getAimPoint(Entity entity) {
+        Vec3d eyePos = mc.player.getEyePos();
+        Box box = entity.getBoundingBox();
+        double boxHeight = box.maxY - box.minY;
+        if (boxHeight <= 0.0) {
+            return entity.getEyePos();
+        } else {
+            double nearestX = MathHelper.clamp(eyePos.x, box.minX, box.maxX);
+            double nearestZ = MathHelper.clamp(eyePos.z, box.minZ, box.maxZ);
+            double horizontalDistSq = (eyePos.x - nearestX) * (eyePos.x - nearestX) + (eyePos.z - nearestZ) * (eyePos.z - nearestZ);
+            double bestDistSq = Double.POSITIVE_INFINITY;
+            Vec3d bestPoint = null;
+
+            for (int index = 0; index < AIM_POINT_NAMES.length; index++) {
+                if (this.aimPoints.isSelected(AIM_POINT_NAMES[index])) {
+                    double pointY = box.minY + AIM_POINT_HEIGHTS[index] * boxHeight;
+                    double dy = eyePos.y - pointY;
+                    double distSq = horizontalDistSq + dy * dy;
+                    if (distSq < bestDistSq) {
+                        bestDistSq = distSq;
+                        bestPoint = new Vec3d(nearestX, pointY, nearestZ);
+                    }
+                }
+            }
+
+            return bestPoint != null ? bestPoint : entity.getEyePos();
+        }
+    }
+
+    private void attackTarget(Entity target) {
+        if (target != null) {
+            this.sendingAttack = true;
+            PlayerInteractions.attackEntity(target);
+            this.sendingAttack = false;
+        }
+    }
+
+    public boolean onMouseButton(int button, int action) {
+        if (mc.currentScreen == null && mc.isWindowFocused()) {
+            if (!this.isKillAuraActive()) {
+                if (button == 0 && action == 1) {
+                    HitResult crosshairHit = mc.crosshairTarget;
+                    if (crosshairHit != null && crosshairHit.getType() == Type.BLOCK && InventoryUtil.isSword(mc.player.getMainHandStack())) {
+                        Entity target = this.findTarget();
+                        if (target == null) {
+                            return false;
+                        }
+
+                        if (this.exceedsAngleLimits(RotationUtil.getRotationTo(
+                            this.getAimPoint(target)
+                        ))) {
+                            return false;
+                        }
+
+                        this.pendingTarget = target;
+                        this.hitPending = true;
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    public boolean onHandleBlockBreaking() {
+        if (mc.currentScreen == null && mc.isWindowFocused()) {
+            if (!this.isKillAuraActive()) {
+                HitResult crosshairHit = mc.crosshairTarget;
+                if (crosshairHit != null && crosshairHit.getType() == Type.BLOCK && InventoryUtil.isSword(mc.player.getMainHandStack())) {
+                    Entity target = this.findTarget();
+                    if (target == null) {
+                        return false;
+                    }
+
+                    if (this.exceedsAngleLimits(RotationUtil.getRotationTo(
+                        this.getAimPoint(target)
+                    ))) {
+                        return false;
+                    }
+
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    @Override
+    protected void onEnable() {
+        this.lastAimPoint = null;
+        this.pendingTarget = null;
+        this.hitPending = false;
+        this.sendingAttack = false;
+        PrestigeSupport.silentRotationManager.addRotationProvider(this);
+    }
+
+    @Override
+    protected void onDisable() {
+        this.lastAimPoint = null;
+        this.pendingTarget = null;
+        this.hitPending = false;
+        this.sendingAttack = false;
+        PrestigeSupport.silentRotationManager.removeRotationProvider(this);
+    }
 }

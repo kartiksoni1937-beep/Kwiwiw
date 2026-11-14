@@ -21,7 +21,7 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
-import com.corz.client.categories.combat.SilentAim;
+import com.corz.client.utils.prestige.PrestigeSupport;
 import com.corz.client.utils.TextStyleUtils;
 
 public final class EntityPlayerUtilsLiving {
@@ -70,7 +70,7 @@ public final class EntityPlayerUtilsLiving {
    public static double getInstanceEye(Vec3d vec) {
       if (entityPlayerMinecraftClient.player != null && vec != null) {
          Vec3d eyePos = entityPlayerMinecraftClient.player.getEyePos();
-         return TextStyleUtils.getAmount(SilentAim.getYawSilent(), SilentAim.getSilentPitch(), vec.x - eyePos.x, vec.y - eyePos.y, vec.z - eyePos.z);
+         return TextStyleUtils.getAmount(PrestigeSupport.getServerYaw(), PrestigeSupport.getServerPitch(), vec.x - eyePos.x, vec.y - eyePos.y, vec.z - eyePos.z);
       } else {
          return 180.0;
       }
