@@ -5,10 +5,12 @@ import com.corz.client.config.BooleanSetting;
 import com.corz.client.config.ColorSetting;
 import com.corz.client.config.ConfigSetting;
 import com.corz.client.config.DoubleSetting;
+import com.corz.client.config.MultiSelectSetting;
+import com.corz.client.render.QueueCommand;
+import com.corz.client.render.VertexBuilderUtils;
 import com.corz.client.utils.IconsPngType;
 import com.corz.client.utils.prestige.BlockUtil;
 import com.corz.client.utils.prestige.InventoryUtil;
-import com.corz.client.utils.prestige.MultiSetting;
 import com.corz.client.utils.prestige.PlayerInteractions;
 import com.corz.client.utils.prestige.PrestigeSupport;
 import com.corz.client.utils.prestige.Rotation;
@@ -16,12 +18,15 @@ import com.corz.client.utils.prestige.RotationProvider;
 import com.corz.client.utils.prestige.RotationUtil;
 import com.corz.client.utils.prestige.TargetSelector;
 import net.minecraft.entity.Entity;
+import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.AxeItem;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.hit.HitResult.Type;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
+import org.joml.Matrix4f;
+import java.awt.Color;
 
 public class SilentAim extends Module implements RotationProvider {
     private BooleanSetting playerOnly;
@@ -29,7 +34,7 @@ public class SilentAim extends Module implements RotationProvider {
     private BooleanSetting continuousTracking;
     private DoubleSetting maxYaw;
     private DoubleSetting maxPitch;
-    private MultiSetting aimPoints;
+    private MultiSelectSetting aimPoints;
     private BooleanSetting renderDot;
     private DoubleSetting dotSize;
     private ColorSetting dotColor;
@@ -37,6 +42,7 @@ public class SilentAim extends Module implements RotationProvider {
     private boolean sendingAttack = false;
     private Vec3d lastAimPoint = null;
     private Entity pendingTarget = null;
+    private Entity pendingAttackTarget = null;
     private static final String[] AIM_POINT_NAMES = new String[]{"Head", "Neck", "Body", "Arms", "Thighs", "Legs", "Feet"};
     private static final double[] AIM_POINT_HEIGHTS = new double[]{0.95, 0.85, 0.7, 0.65, 0.35, 0.2, 0.05};
 
@@ -61,8 +67,9 @@ public class SilentAim extends Module implements RotationProvider {
         this.renderDot = new BooleanSetting("Render Dot", "Draws a dot where the silent aim points.", false);
         this.dotSize = new DoubleSetting("Dot Size", "Sets the aim dot's radius (blocks).", 0.1, 0.02, 0.5, 0.01);
         this.dotColor = new ColorSetting("Dot Color", "Sets the aim dot color.", 0xFFFF4040);
-        this.aimPoints = new MultiSetting(
+        this.aimPoints = new MultiSelectSetting(
             "Aim Points",
+            "Select which points on the target the silent aim may use.",
             AIM_POINT_NAMES.clone(),
             new boolean[]{true, false, true, false, false, false, false}
         );
@@ -73,6 +80,7 @@ public class SilentAim extends Module implements RotationProvider {
                 this.continuousTracking,
                 this.maxYaw,
                 this.maxPitch,
+                this.aimPoints,
                 this.renderDot,
                 this.dotSize,
                 this.dotColor
@@ -100,7 +108,7 @@ public class SilentAim extends Module implements RotationProvider {
             : null);
     }
 
-    public boolean onAttack() {
+    public boolean onSwingHand() {
         return this.onSwingHandPre() || this.onMouseButton(0, 1);
     }
 
@@ -138,6 +146,7 @@ public class SilentAim extends Module implements RotationProvider {
 
     @Override
     public Rotation provideRotation() {
+        this.pendingAttackTarget = null;
         Entity target = this.pendingTarget;
         this.pendingTarget = null;
         if (target != null && !target.isAlive()) {
@@ -159,7 +168,7 @@ public class SilentAim extends Module implements RotationProvider {
                     this.lastAimPoint = this.getAimPoint(target);
                     if (this.hitPending) {
                         this.hitPending = false;
-                        this.attackTarget(target);
+                        this.pendingAttackTarget = target;
                     }
 
                     return trackingRotation;
@@ -180,11 +189,20 @@ public class SilentAim extends Module implements RotationProvider {
                         return null;
                     } else {
                         this.lastAimPoint = this.getAimPoint(target);
-                        this.attackTarget(target);
+                        this.pendingAttackTarget = target;
                         return hitRotation;
                     }
                 }
             }
+        }
+    }
+
+    @Override
+    public void onMovementPacketSent() {
+        Entity target = this.pendingAttackTarget;
+        this.pendingAttackTarget = null;
+        if (target != null) {
+            this.attackTarget(target);
         }
     }
 
@@ -299,9 +317,51 @@ public class SilentAim extends Module implements RotationProvider {
     }
 
     @Override
+    protected void onRender3D(QueueCommand queueCommand) {
+        if (this.renderDot.isEnabled() && this.lastAimPoint != null && mc.world != null && mc.player != null) {
+            Vec3d point = this.lastAimPoint;
+            double radius = this.dotSize.getValue();
+            Color fill = new Color(this.dotColor.getColor(), true);
+            Color outline = new Color(fill.getRed(), fill.getGreen(), fill.getBlue(), Math.min(255, fill.getAlpha() + 55));
+            Vec3d cameraPos = mc.gameRenderer.getCamera().getCameraPos();
+            MatrixStack matrices = queueCommand.matrices;
+            matrices.push();
+
+            try {
+                matrices.translate(-cameraPos.x, -cameraPos.y, -cameraPos.z);
+                Matrix4f matrix = matrices.peek().getPositionMatrix();
+                float minX = (float)(point.x - radius);
+                float minY = (float)(point.y - radius);
+                float minZ = (float)(point.z - radius);
+                float maxX = (float)(point.x + radius);
+                float maxY = (float)(point.y + radius);
+                float maxZ = (float)(point.z + radius);
+                VertexBuilderUtils.handle(
+                    matrix,
+                    minX,
+                    minY,
+                    minZ,
+                    maxX,
+                    maxY,
+                    maxZ,
+                    fill.getRed() / 255.0F,
+                    fill.getGreen() / 255.0F,
+                    fill.getBlue() / 255.0F,
+                    fill.getAlpha() / 255.0F
+                );
+                VertexBuilderUtils.handle(matrix, minX, minY, minZ, maxX, maxY, maxZ, outline.getRGB(), 1.5F);
+                VertexBuilderUtils.updateDrawImmediate();
+            } finally {
+                matrices.pop();
+            }
+        }
+    }
+
+    @Override
     protected void onEnable() {
         this.lastAimPoint = null;
         this.pendingTarget = null;
+        this.pendingAttackTarget = null;
         this.hitPending = false;
         this.sendingAttack = false;
         PrestigeSupport.silentRotationManager.addRotationProvider(this);
@@ -311,6 +371,7 @@ public class SilentAim extends Module implements RotationProvider {
     protected void onDisable() {
         this.lastAimPoint = null;
         this.pendingTarget = null;
+        this.pendingAttackTarget = null;
         this.hitPending = false;
         this.sendingAttack = false;
         PrestigeSupport.silentRotationManager.removeRotationProvider(this);

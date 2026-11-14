@@ -93,6 +93,9 @@ public class SilentRotationManager implements MinecraftAccess {
 
     public void onMovementPacketSent() {
         this.lastSentRotation = this.activeRotation;
+        for (RotationProvider provider : this.rotationProviders) {
+            provider.onMovementPacketSent();
+        }
     }
 
     public void setActiveRotation(Rotation rotation) {
@@ -106,6 +109,10 @@ public class SilentRotationManager implements MinecraftAccess {
 
     public Rotation getRotationTowards(Vec3d target) {
         return RotationUtil.getLimitedRotationTo(this.serverRotation != null ? this.serverRotation : new Rotation(mc.player.getYaw(), mc.player.getPitch()), target, maxRotationStep);
+    }
+
+    public Rotation getRotationTo(Vec3d target) {
+        return RotationUtil.getRotationTo(target);
     }
 
     public Rotation getServerRotation() {

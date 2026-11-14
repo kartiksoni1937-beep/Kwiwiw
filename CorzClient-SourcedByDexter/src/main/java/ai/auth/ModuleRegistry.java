@@ -363,6 +363,7 @@ public class ModuleRegistry {
         ExtUtils.updateFlagAction();
         PrestigeSupport.frameDeltaTimer.tick();
         PrestigeSupport.silentRotationManager.tick();
+        PrestigeSupport.visualRotationManager.tick();
         ClientThreadUtils.updateOptionsTime();
         PlayerInputOverride.updateFlagTick();
         EntityDamageUtils.updateTimeInstance();

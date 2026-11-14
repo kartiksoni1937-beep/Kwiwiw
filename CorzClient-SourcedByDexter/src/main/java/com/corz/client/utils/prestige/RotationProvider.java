@@ -6,4 +6,7 @@ public interface RotationProvider {
     default int getRotationPriority() {
         return 0;
     }
+
+    default void onMovementPacketSent() {
+    }
 }

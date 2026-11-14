@@ -8,6 +8,7 @@ import com.corz.client.config.EnumSetting;
 import com.corz.client.config.IntegerSetting;
 import com.corz.client.config.KeybindSetting;
 import com.corz.client.config.ModuleConfigAutosave;
+import com.corz.client.config.MultiSelectSetting;
 import com.corz.client.config.ModuleIdentities;
 import com.corz.client.config.RangeSetting;
 import com.corz.client.config.StringBase;
@@ -129,6 +130,8 @@ public class Module implements PanicDestructUtils.Target, HudShowUtils.View {
                 rangeSetting.handleMaxAmount(rangeSetting.getAmount3());
             } else if (configSetting instanceof KeybindSetting keybindSetting) {
                 keybindSetting.setValue2(keybindSetting.getValue());
+            } else if (configSetting instanceof MultiSelectSetting multiSelectSetting) {
+                multiSelectSetting.reset();
             }
         }
         ModuleConfigAutosave.updateFlag();

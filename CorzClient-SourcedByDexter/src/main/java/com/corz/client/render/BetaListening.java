@@ -10,6 +10,7 @@ import com.corz.client.config.DoubleSetting;
 import com.corz.client.config.EnumSetting;
 import com.corz.client.config.IntegerSetting;
 import com.corz.client.config.KeybindSetting;
+import com.corz.client.config.MultiSelectSetting;
 import com.corz.client.config.RangeSetting;
 import com.corz.client.config.RadioSetting;
 import com.corz.client.config.StringBase;
@@ -20,6 +21,7 @@ import com.corz.client.gui.IntegerFlag;
 import com.corz.client.gui.MatrixPeekUtilsRender;
 import com.corz.client.gui.MaxRenderer;
 import com.corz.client.gui.MinmaxHandle;
+import com.corz.client.gui.MultiSelectComponent;
 import com.corz.client.gui.PressOpen;
 import com.corz.client.gui.RenderBeta;
 import com.corz.client.gui.RenderPillUtils;
@@ -1565,6 +1567,8 @@ public class BetaListening implements GlfwListeningApi {
          return new BetaListening.SettingComponent(new ConfigBrowserPanel(configListBase, classValue, classValue2, classValue3, classValue4), classValue4);
       } else if (autoEspBase instanceof RadioSetting radioBase) {
          return new BetaListening.SettingComponent(new RadioCom(radioBase, classValue, classValue2, classValue3, classValue4), classValue4);
+      } else if (autoEspBase instanceof MultiSelectSetting multiSelectBase) {
+         return new BetaListening.SettingComponent(new MultiSelectComponent(multiSelectBase, classValue, classValue2, classValue3, classValue4), classValue4);
       } else if (autoEspBase instanceof PaletteBase paletteBase) {
          return new BetaListening.SettingComponent(new ThemeWhole(paletteBase, classValue, classValue2, classValue3, classValue4), classValue4);
       } else {
@@ -1788,7 +1792,7 @@ public class BetaListening implements GlfwListeningApi {
                }
 
                betaListeningText = text;
-               byte betaListeningValue;
+               int betaListeningValue;
                if (autoEspBase instanceof BooleanSetting) {
                   betaListeningValue = 20;
                } else if (autoEspBase instanceof ButtonBase) {
@@ -1805,6 +1809,8 @@ public class BetaListening implements GlfwListeningApi {
                   betaListeningValue = 24;
                } else if (autoEspBase instanceof RadioSetting) {
                   betaListeningValue = 24;
+               } else if (autoEspBase instanceof MultiSelectSetting multiSelectSetting) {
+                  betaListeningValue = MultiSelectComponent.getHeight(multiSelectSetting);
                } else if (autoEspBase instanceof KeybindSetting) {
                   betaListeningValue = 24;
                } else {
@@ -2460,6 +2466,8 @@ public class BetaListening implements GlfwListeningApi {
             return themeWhole.canTheme(betaListeningValue, mouseY, button);
          } else if (this.betaObject instanceof RadioCom radioCom) {
             return radioCom.canFlag(betaListeningValue, mouseY, button);
+         } else if (this.betaObject instanceof MultiSelectComponent multiSelectComponent) {
+            return multiSelectComponent.canFlag(betaListeningValue, mouseY, button);
          } else {
             return this.betaObject instanceof ListeningGlfw listeningGlfw ? listeningGlfw.canApi(betaListeningValue, mouseY, button) : false;
          }
@@ -2583,6 +2591,8 @@ public class BetaListening implements GlfwListeningApi {
                   themeWhole.renderPaletteWhole(context, betaValue, mouseY);
                } else if (this.betaObject instanceof RadioCom radioCom) {
                   radioCom.renderPlaylistsReload(context, betaValue, mouseY);
+               } else if (this.betaObject instanceof MultiSelectComponent multiSelectComponent) {
+                  multiSelectComponent.render(context, betaValue, mouseY);
                } else if (this.betaObject instanceof ListeningGlfw listeningGlfw) {
                   listeningGlfw.renderListeningRelease(context, betaValue, mouseY);
                }
@@ -2623,6 +2633,8 @@ public class BetaListening implements GlfwListeningApi {
                themeWhole.handlePaletteWhole(settingComponentValue, editClusterValue, width, betaText);
             } else if (this.betaObject instanceof RadioCom radioCom) {
                radioCom.handlePlaylistsReload(settingComponentValue, editClusterValue, width, betaText);
+            } else if (this.betaObject instanceof MultiSelectComponent multiSelectComponent) {
+               multiSelectComponent.handle(settingComponentValue, editClusterValue, width, betaText);
             } else if (this.betaObject instanceof ListeningGlfw listeningGlfw) {
                listeningGlfw.handleListening(settingComponentValue, editClusterValue, width, betaText);
             }

@@ -5,6 +5,7 @@ import net.minecraft.client.MinecraftClient;
 public final class PrestigeSupport {
     public static final FrameDeltaTimer frameDeltaTimer = new FrameDeltaTimer();
     public static final SilentRotationManager silentRotationManager = new SilentRotationManager();
+    public static final VisualRotationManager visualRotationManager = new VisualRotationManager();
 
     private PrestigeSupport() {
     }

@@ -75,6 +75,7 @@
     "MixinHeldItemRenderer",
     "MixinItemModelManager",
     "MixinLivingEntity",
+    "MixinLivingEntityRenderer",
     "MixinPlayerEntityRenderer",
     "MixinPlayerEntityRendererCape",
     "MixinPlayerEntityRendererBrainrot",

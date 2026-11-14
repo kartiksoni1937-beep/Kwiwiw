@@ -163,7 +163,7 @@ public class MixinMinecraftClient {
    )
    private void corzSilentAimAttack(CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
       SilentAim silentAim = (SilentAim)ModuleRegistry.getModule(SilentAim.class);
-      if (silentAim != null && silentAim.isEnabled() && silentAim.onAttack()) {
+      if (silentAim != null && silentAim.isEnabled() && silentAim.onSwingHand()) {
          callbackInfoReturnable.setReturnValue(true);
          return;
       }

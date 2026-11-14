@@ -15,5 +15,6 @@ public enum MinmaxEnumType {
    PALETTE,
    BUTTON,
    KEYBIND,
-   RADIO;
+   RADIO,
+   MULTI_SELECT;
 }
