@@ -116,6 +116,10 @@ public class SilentRotationManager implements MinecraftAccess {
         return this.activeRotation;
     }
 
+    public float getMovementYaw(float fallbackYaw) {
+        return this.activeRotation != null ? this.activeRotation.getYaw() : fallbackYaw;
+    }
+
     public synchronized boolean tryLockRotation(Object owner, Rotation rotation) {
         if (owner != null && rotation != null) {
             if (!this.canRotate()) {

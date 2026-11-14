@@ -1,11 +1,14 @@
 package com.corz.client.mixins;
 
 import com.corz.client.world.MathClampUtils;
+import com.corz.client.utils.prestige.PrestigeSupport;
+import com.corz.client.utils.prestige.Rotation;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.util.Hand;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -14,22 +17,69 @@ import ai.auth.Module;
 
 @Mixin({LivingEntity.class})
 public abstract class MixinLivingEntity {
+   @Unique
+   private float corzPrestigeSavedYaw;
+   @Unique
+   private float corzPrestigeSavedPitch;
+   @Unique
+   private boolean corzPrestigeTravelSpoofed;
+
+   @Inject(
+      method = {"method_6091(Lnet/minecraft/class_243;)V"},
+      at = {@At("HEAD")}
+   )
+   private void corzPrestigeTravelHead(Vec3d movementInput, CallbackInfo callbackInfo) {
+      this.corzPrestigeTravelSpoofed = false;
+      if (((Object) this) == Module.mc.player) {
+         Rotation rotation = PrestigeSupport.silentRotationManager.getActiveRotation();
+         if (rotation != null) {
+            LivingEntity self = (LivingEntity)((net.minecraft.entity.LivingEntity) (Object) (this));
+            this.corzPrestigeSavedYaw = self.getYaw();
+            this.corzPrestigeSavedPitch = self.getPitch();
+            self.setYaw(rotation.getYaw());
+            self.setPitch(rotation.getPitch());
+            this.corzPrestigeTravelSpoofed = true;
+         }
+      }
+   }
+
+   @Inject(
+      method = {"method_6091(Lnet/minecraft/class_243;)V"},
+      at = {@At("RETURN")}
+   )
+   private void corzPrestigeTravelReturn(Vec3d movementInput, CallbackInfo callbackInfo) {
+      if (this.corzPrestigeTravelSpoofed) {
+         LivingEntity self = (LivingEntity)((net.minecraft.entity.LivingEntity) (Object) (this));
+         self.setYaw(this.corzPrestigeSavedYaw);
+         self.setPitch(this.corzPrestigeSavedPitch);
+         this.corzPrestigeTravelSpoofed = false;
+      }
+   }
+
    @Inject(
       method = {"method_6043()V"},
       at = {@At("TAIL")}
    )
    private void corzJumpMoveFix(CallbackInfo callbackInfo) {
       if (((Object) this) == Module.mc.player) {
-         if (MathClampUtils.isClampSettled()) {
-            LivingEntity self = (LivingEntity)((net.minecraft.entity.LivingEntity) (Object) (this));
-            if (self.isSprinting()) {
-               float real = self.getYaw() * (float) (Math.PI / 180.0);
-               float srv = MathClampUtils.getYaw() * (float) (Math.PI / 180.0);
-               Vec3d v = self.getVelocity();
-               double nx = v.x + MathHelper.sin(real) * 0.2 - MathHelper.sin(srv) * 0.2;
-               double nz = v.z - MathHelper.cos(real) * 0.2 + MathHelper.cos(srv) * 0.2;
-               self.setVelocity(nx, v.y, nz);
-            }
+         float serverYaw;
+         Rotation prestigeRotation = PrestigeSupport.silentRotationManager.getActiveRotation();
+         if (prestigeRotation != null) {
+            serverYaw = prestigeRotation.getYaw();
+         } else if (MathClampUtils.isClampSettled()) {
+            serverYaw = MathClampUtils.getYaw();
+         } else {
+            return;
+         }
+
+         LivingEntity self = (LivingEntity)((net.minecraft.entity.LivingEntity) (Object) (this));
+         if (self.isSprinting()) {
+            float real = self.getYaw() * (float) (Math.PI / 180.0);
+            float srv = serverYaw * (float) (Math.PI / 180.0);
+            Vec3d v = self.getVelocity();
+            double nx = v.x + MathHelper.sin(real) * 0.2 - MathHelper.sin(srv) * 0.2;
+            double nz = v.z - MathHelper.cos(real) * 0.2 + MathHelper.cos(srv) * 0.2;
+            self.setVelocity(nx, v.y, nz);
          }
       }
    }

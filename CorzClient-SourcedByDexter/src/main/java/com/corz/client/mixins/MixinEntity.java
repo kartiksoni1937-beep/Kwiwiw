@@ -2,6 +2,7 @@ package com.corz.client.mixins;
 
 import com.corz.client.render.ClampMatrixUtils;
 import com.corz.client.world.MathClampUtils;
+import com.corz.client.utils.prestige.PrestigeSupport;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
@@ -142,9 +143,10 @@ public class MixinEntity {
       )
    )
    private Vec3d corzMoveFix(Vec3d vec, float corzMoveValue, float corzMoveValue2) {
-      if (MathClampUtils.isClampSettled() && ((Object) this) == MinecraftClient.getInstance().player) {
-         float serverYaw = MathClampUtils.getYaw();
-         return movementInputToVelocity(vec, corzMoveValue, serverYaw);
+      if (((Object) this) == MinecraftClient.getInstance().player) {
+         float visualYaw = MathClampUtils.isClampSettled() ? MathClampUtils.getYaw() : corzMoveValue2;
+         float movementYaw = PrestigeSupport.silentRotationManager.getMovementYaw(visualYaw);
+         return movementInputToVelocity(vec, corzMoveValue, movementYaw);
       } else {
          return movementInputToVelocity(vec, corzMoveValue, corzMoveValue2);
       }
