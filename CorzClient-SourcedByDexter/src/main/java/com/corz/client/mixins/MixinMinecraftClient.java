@@ -1,7 +1,8 @@
 package com.corz.client.mixins;
 
 import com.corz.client.entity.ClientThreadUtils;
-import com.corz.client.categories.combat.AutoMace;
+import com.corz.client.categories.mace.AutoMace;
+import com.corz.client.categories.player.AutoTotem;
 import com.corz.client.categories.combat.SilentAim;
 import com.corz.client.render.FramebufferSimpleUtils;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
@@ -46,6 +47,10 @@ public class MixinMinecraftClient {
       cancellable = true
    )
    private void onItemUseHead(CallbackInfo callbackInfo) {
+      if (AutoTotem.shouldSuppressActions()) {
+         callbackInfo.cancel();
+         return;
+      }
       if (ClientThreadUtils.isDequeArray()) {
          ClientThreadUtils.update();
          callbackInfo.cancel();
@@ -163,6 +168,11 @@ public class MixinMinecraftClient {
       cancellable = true
    )
    private void corzSilentAimAttack(CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
+      if (AutoTotem.shouldSuppressActions()) {
+         callbackInfoReturnable.setReturnValue(false);
+         return;
+      }
+
       AutoMace autoMace = (AutoMace)ModuleRegistry.getModule(AutoMace.class);
       if (autoMace != null && autoMace.isEnabled()) {
          autoMace.onDoAttack();

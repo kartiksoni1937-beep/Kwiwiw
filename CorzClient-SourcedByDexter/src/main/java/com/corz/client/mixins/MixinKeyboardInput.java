@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import com.corz.client.utils.PlayerInputOverride;
+import com.corz.client.categories.player.AutoTotem;
 import com.corz.client.categories.movement.Freecam;
 import com.corz.client.utils.AmountsUtils;
 import com.corz.client.utils.ExtUtils;
@@ -23,6 +24,13 @@ public class MixinKeyboardInput {
    private void corzFreezeMove(CallbackInfo callbackInfo) {
       MinecraftClient mc = MinecraftClient.getInstance();
       if (mc.player != null) {
+         if (AutoTotem.shouldSuppressMovement()) {
+            AccessorInput frozen = (AccessorInput)this;
+            frozen.setMovementVector(Vec2f.ZERO);
+            frozen.setPlayerInput(new PlayerInput(false, false, false, false, false, false, false));
+            return;
+         }
+
          AccessorInput in = (AccessorInput)this;
          if (mc.player.input == ((Object) this)) {
             Freecam.updateFlagInput();

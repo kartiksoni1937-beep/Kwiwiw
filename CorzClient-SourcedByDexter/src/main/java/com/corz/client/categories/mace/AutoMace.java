@@ -1,4 +1,4 @@
-package com.corz.client.categories.combat;
+package com.corz.client.categories.mace;
 
 import ai.auth.Module;
 import com.corz.client.config.BooleanSetting;
@@ -7,6 +7,7 @@ import com.corz.client.config.DoubleSetting;
 import com.corz.client.config.EnumSetting;
 import com.corz.client.config.FriendNameStore;
 import com.corz.client.config.KeybindSetting;
+import com.corz.client.categories.combat.ShieldDrain;
 import com.corz.client.inventory.InventoryStackUtilsEmpty;
 import com.corz.client.utils.IconsPngType;
 import com.corz.client.utils.prestige.BlockUtil;
@@ -70,7 +71,7 @@ public class AutoMace extends Module implements RotationProvider {
     private Runnable pendingAction;
 
     public AutoMace() {
-        super("AutoMace", IconsPngType.COMBAT);
+        super("Mace", IconsPngType.COMBAT);
         this.horizontalTargetDist = new DoubleSetting(
             "Horizontal Target Dist", "Swaps only with a target within this horizontal distance (blocks).", 5.0, 0.0, 6.0, 0.1
         );

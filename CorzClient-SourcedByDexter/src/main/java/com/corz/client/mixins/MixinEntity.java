@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.corz.client.categories.bots.CrystalPvpBot;
 import com.corz.client.categories.bots.SwordPvpBot;
-import com.corz.client.categories.combat.AutoMace;
+import com.corz.client.categories.mace.AutoMace;
 import com.corz.client.categories.combat.HitBoxes;
 import com.corz.client.categories.bots.AutoBuilder;
 import com.corz.client.categories.movement.Freecam;

@@ -1,14 +1,22 @@
 package com.corz.client.utils.prestige;
 
+import com.corz.client.mixins.AccessorClientWorldPending;
+import net.minecraft.client.network.PendingUpdateManager;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.Entity;
 import net.minecraft.item.Items;
 import net.minecraft.item.PotionItem;
+import net.minecraft.network.packet.c2s.play.HandSwingC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
+import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
+import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 
 public class PlayerInteractions implements MinecraftAccess {
+    private static int lastSyncedSlot = -1;
+
     public static boolean interactBlock(BlockHitResult hitResult) {
         return interactBlock(hitResult, Hand.MAIN_HAND);
     }
@@ -28,22 +36,69 @@ public class PlayerInteractions implements MinecraftAccess {
     }
 
     public static void attackEntity(Entity target) {
-        mc.player.swingHand(Hand.MAIN_HAND);
-        mc.interactionManager.attackEntity(mc.player, target);
+        if (mc.player == null || mc.getNetworkHandler() == null || target == null) {
+            return;
+        }
+
+        syncSelectedSlot();
+
+        // Keep the rotation packet first by only attacking after sendMovementPackets has flushed it.
+        mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
+        mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
+
+        if (!mc.player.isSpectator()) {
+            // Preserve vanilla's local attack effects after both packets; this sends no second swing or interact packet.
+            mc.player.attack(target);
+            mc.player.resetTicksSince();
+        }
+
         PrestigeSupport.silentRotationManager.setActedThisTick(true);
     }
 
     public static boolean interactItem(Hand hand) {
-        ActionResult result = mc.interactionManager.interactItem(mc.player, hand);
+        if (mc.player == null || mc.world == null || mc.getNetworkHandler() == null) {
+            return false;
+        }
+
+        syncSelectedSlot();
+
+        Rotation rotation = PrestigeSupport.silentRotationManager.getLockedRotation();
+        if (rotation == null) {
+            rotation = PrestigeSupport.silentRotationManager.getActiveRotation();
+        }
+
+        float yaw = rotation != null ? rotation.getYaw() : mc.player.getYaw();
+        float pitch = rotation != null ? rotation.getPitch() : mc.player.getPitch();
+
+        PendingUpdateManager pending = ((AccessorClientWorldPending) mc.world).corzPendingUpdates();
+        if (pending != null) {
+            pending = pending.incrementSequence();
+            try {
+                mc.getNetworkHandler().sendPacket(new PlayerInteractItemC2SPacket(hand, pending.getSequence(), yaw, pitch));
+            } finally {
+                pending.close();
+            }
+        } else {
+            mc.getNetworkHandler().sendPacket(new PlayerInteractItemC2SPacket(hand, 0, yaw, pitch));
+        }
+
         if (!mc.player.isSpectator()) {
             PrestigeSupport.silentRotationManager.setActedThisTick(true);
         }
 
-        if (result.isAccepted()) {
-            mc.player.swingHand(Hand.MAIN_HAND);
-            return true;
-        } else {
-            return false;
+        return true;
+    }
+
+    private static void syncSelectedSlot() {
+        if (mc.player == null || mc.getNetworkHandler() == null) {
+            lastSyncedSlot = -1;
+            return;
+        }
+
+        int selectedSlot = mc.player.getInventory().getSelectedSlot();
+        if (selectedSlot != lastSyncedSlot) {
+            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(selectedSlot));
+            lastSyncedSlot = selectedSlot;
         }
     }
 
