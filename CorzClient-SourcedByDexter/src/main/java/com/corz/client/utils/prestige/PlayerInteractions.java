@@ -28,8 +28,8 @@ public class PlayerInteractions implements MinecraftAccess {
     }
 
     public static void attackEntity(Entity target) {
-        mc.interactionManager.attackEntity(mc.player, target);
         mc.player.swingHand(Hand.MAIN_HAND);
+        mc.interactionManager.attackEntity(mc.player, target);
         PrestigeSupport.silentRotationManager.setActedThisTick(true);
     }
 

@@ -18,8 +18,10 @@ import com.corz.client.utils.prestige.RotationProvider;
 import com.corz.client.utils.prestige.RotationUtil;
 import com.corz.client.utils.prestige.TargetSelector;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.decoration.EndCrystalEntity;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.item.AxeItem;
+import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.hit.HitResult.Type;
 import net.minecraft.util.math.Box;
@@ -109,6 +111,11 @@ public class SilentAim extends Module implements RotationProvider {
     }
 
     public boolean onSwingHand() {
+        HitResult crosshairHit = mc.crosshairTarget;
+        if (crosshairHit instanceof EntityHitResult entityHit && entityHit.getEntity() instanceof EndCrystalEntity) {
+            return false;
+        }
+
         return this.onSwingHandPre() || this.onMouseButton(0, 1);
     }
 
