@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing release tag to attach the built jar to
         required: true
-        default: v2.0.1
+        default: v2.0.2
 
 permissions:
   contents: write
@@ -33,4 +33,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
-        run: gh release upload "$TAG" CorzClient-SourcedByDexter/build/libs/corz-client-2.0.1.jar --clobber
+                  run: gh release upload "$TAG" CorzClient-SourcedByDexter/build/libs/corz-client-2.0.2.jar --clobber
