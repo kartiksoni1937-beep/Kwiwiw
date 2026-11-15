@@ -17,6 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.corz.client.categories.bots.CrystalPvpBot;
 import com.corz.client.categories.bots.SwordPvpBot;
+import com.corz.client.categories.combat.AutoMace;
 import com.corz.client.categories.combat.HitBoxes;
 import com.corz.client.categories.bots.AutoBuilder;
 import com.corz.client.categories.movement.Freecam;
@@ -90,14 +91,27 @@ public class MixinEntity {
       cancellable = true
    )
    private void onGetTargetingMargin(CallbackInfoReturnable<Float> callbackInfoReturnable) {
+      Entity self = (Entity)((net.minecraft.entity.Entity) (Object) (this));
+      MinecraftClient client = MinecraftClient.getInstance();
+      if (self == client.player) {
+         return;
+      }
+
+      float expansion = 0.0F;
       HitBoxes hitBoxes = (HitBoxes)ModuleRegistry.getModule(HitBoxes.class);
-      if (hitBoxes != null && hitBoxes.isEnabled()) {
-         Entity self = (Entity)((net.minecraft.entity.Entity) (Object) (this));
-         if (self != MinecraftClient.getInstance().player) {
-            if (hitBoxes.isPlayersOnly() ? self instanceof PlayerEntity : self instanceof LivingEntity) {
-               callbackInfoReturnable.setReturnValue(hitBoxes.getExpandAmount());
-            }
-         }
+      if (hitBoxes != null
+         && hitBoxes.isEnabled()
+         && (hitBoxes.isPlayersOnly() ? self instanceof PlayerEntity : self instanceof LivingEntity)) {
+         expansion = hitBoxes.getExpandAmount();
+      }
+
+      AutoMace autoMace = (AutoMace)ModuleRegistry.getModule(AutoMace.class);
+      if (autoMace != null && autoMace.shouldExpandHitbox(self)) {
+         expansion = Math.max(expansion, autoMace.getHitboxExpansion());
+      }
+
+      if (expansion > 0.0F) {
+         callbackInfoReturnable.setReturnValue(expansion);
       }
    }
 
