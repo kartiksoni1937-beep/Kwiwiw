@@ -92,6 +92,16 @@ public class RotationUtil implements MinecraftAccess {
         return getRotationToPoint((float)target.x, (float)target.y, (float)target.z);
     }
 
+    public static Rotation getRotationTo(Entity target) {
+        return getRotationTo(target, target.getEyePos());
+    }
+
+    public static Rotation getRotationTo(Entity target, Vec3d aimPoint) {
+        // Attacks are sent one tick after this rotation. Aim where the target will be then.
+        Vec3d predicted = aimPoint.add(target.getVelocity().multiply(0.05));
+        return getRotationTo(predicted);
+    }
+
     public static Rotation getRotationToPoint(float x, float y, float z) {
         Vec3d eyePos = mc.player.getEyePos();
         double diffX = x - eyePos.x;

@@ -7,6 +7,6 @@ public interface RotationProvider {
         return 0;
     }
 
-    default void onMovementPacketSent() {
+    default void flushActions() {
     }
 }

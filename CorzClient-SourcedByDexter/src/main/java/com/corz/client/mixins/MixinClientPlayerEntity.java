@@ -146,6 +146,8 @@ public class MixinClientPlayerEntity {
       at = {@At("HEAD")}
    )
    private void corzSilentAimHead(CallbackInfo callbackInfo) {
+      // Run queued combat actions before sendMovementPackets serializes the movement packet.
+      PrestigeSupport.silentRotationManager.flushActions();
       this.corzRotationSwapped = false;
       ClientPlayerEntity self = (ClientPlayerEntity)((net.minecraft.client.network.ClientPlayerEntity) (Object) (this));
       Rotation prestigeRotation = PrestigeSupport.silentRotationManager.getRotationForPacket();
@@ -169,7 +171,6 @@ public class MixinClientPlayerEntity {
       at = {@At("RETURN")}
    )
    private void corzSilentAimReturn(CallbackInfo callbackInfo) {
-      PrestigeSupport.silentRotationManager.onMovementPacketSent();
       if (this.corzRotationSwapped) {
          ClientPlayerEntity self = (ClientPlayerEntity)((net.minecraft.client.network.ClientPlayerEntity) (Object) (this));
          self.setYaw(this.corzRealYaw);

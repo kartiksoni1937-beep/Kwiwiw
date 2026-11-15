@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing release tag to attach the built jar to
         required: true
-        default: v2.0.3
+        default: v2.0.4
 
 permissions:
   contents: write

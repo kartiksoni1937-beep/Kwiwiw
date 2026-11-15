@@ -2,10 +2,12 @@ package com.corz.client.utils.prestige;
 
 import ai.auth.ModuleRegistry;
 import com.corz.client.categories.movement.Freecam;
+import com.corz.client.entity.ClientThreadUtils;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import net.minecraft.entity.Entity;
 import net.minecraft.util.math.Vec3d;
 
 public class SilentRotationManager implements MinecraftAccess {
@@ -21,6 +23,10 @@ public class SilentRotationManager implements MinecraftAccess {
     private Rotation lockedRotation;
     private Object lockWorld;
     final List<Runnable> scheduledTasks;
+    private boolean pendingAttack = false;
+    private Entity pendingAttackTarget = null;
+    private Runnable pendingAttackAfter = null;
+    private long lastFlushTick = Long.MIN_VALUE;
 
     public void tick() {
         this.actedThisTick = false;
@@ -91,11 +97,68 @@ public class SilentRotationManager implements MinecraftAccess {
         }
     }
 
-    public void onMovementPacketSent() {
-        this.lastSentRotation = this.activeRotation;
-        for (RotationProvider provider : this.rotationProviders) {
-            provider.onMovementPacketSent();
+    public boolean queueAttack(Entity target, boolean wantCrit, Runnable afterAttack) {
+        if (target == null || this.pendingAttack) {
+            return false;
         }
+
+        this.pendingAttack = true;
+        this.pendingAttackTarget = target;
+        this.pendingAttackAfter = afterAttack;
+
+        // The attack is sent next tick. Release sprint this tick so vanilla's sprint packet
+        // reaches the server before the delayed interact packet and the hit can crit.
+        if (wantCrit) {
+            PlayerInteractions.prepareCritSprintReset();
+        }
+
+        return true;
+    }
+
+    public void flushActions() {
+        long tick = ClientThreadUtils.getTime();
+        if (tick == this.lastFlushTick) {
+            return;
+        }
+        this.lastFlushTick = tick;
+        this.lastSentRotation = this.activeRotation;
+
+        // Execute the attack queued last tick before this tick's modules queue their next one.
+        // The rotation for that attack was already sent in the previous tick's movement packet,
+        // so the server has it before the interact packet arrives.
+        if (this.pendingAttack) {
+            Entity target = this.pendingAttackTarget;
+            Runnable afterAttack = this.pendingAttackAfter;
+            this.pendingAttack = false;
+            this.pendingAttackTarget = null;
+            this.pendingAttackAfter = null;
+
+            if (this.isValidPendingTarget(target)) {
+                PlayerInteractions.attackEntity(target);
+            }
+
+            if (afterAttack != null) {
+                afterAttack.run();
+            }
+        }
+
+        for (RotationProvider provider : this.rotationProviders) {
+            provider.flushActions();
+        }
+    }
+
+    public boolean hasPendingAttack() {
+        return this.pendingAttack;
+    }
+
+    private boolean isValidPendingTarget(Entity target) {
+        return target != null
+            && mc.player != null
+            && mc.world != null
+            && target.isAlive()
+            && !target.isRemoved()
+            && target.getEntityWorld() == mc.world
+            && mc.player.distanceTo(target) <= 6.0F;
     }
 
     public void setActiveRotation(Rotation rotation) {
@@ -113,6 +176,14 @@ public class SilentRotationManager implements MinecraftAccess {
 
     public Rotation getRotationTo(Vec3d target) {
         return RotationUtil.getRotationTo(target);
+    }
+
+    public Rotation getRotationTo(Entity target) {
+        return RotationUtil.getRotationTo(target);
+    }
+
+    public Rotation getRotationTo(Entity target, Vec3d aimPoint) {
+        return RotationUtil.getRotationTo(target, aimPoint);
     }
 
     public Rotation getServerRotation() {

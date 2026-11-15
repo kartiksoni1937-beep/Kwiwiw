@@ -1,5 +1,7 @@
 package com.corz.client.utils.prestige;
 
+import com.corz.client.entity.ClientThreadUtils;
+import com.corz.client.mixins.AccessorClientPlayerInteractionManager;
 import com.corz.client.mixins.AccessorClientWorldPending;
 import net.minecraft.client.network.PendingUpdateManager;
 import net.minecraft.component.DataComponentTypes;
@@ -9,19 +11,36 @@ import net.minecraft.item.PotionItem;
 import net.minecraft.network.packet.c2s.play.HandSwingC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractEntityC2SPacket;
 import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket;
-import net.minecraft.network.packet.c2s.play.UpdateSelectedSlotC2SPacket;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
 
 public class PlayerInteractions implements MinecraftAccess {
-    private static int lastSyncedSlot = -1;
+    private static long lastAttackTick = Long.MIN_VALUE;
+    private static long lastUseTick = Long.MIN_VALUE;
+
+    public static void markUseAction() {
+        lastUseTick = ClientThreadUtils.getTime();
+    }
+
+    public static boolean isUseActionThisTick() {
+        return ClientThreadUtils.getTime() == lastUseTick;
+    }
+
+    public static boolean isAttackThisTick() {
+        return ClientThreadUtils.getTime() == lastAttackTick;
+    }
+
+    public static boolean isAttackPending() {
+        return PrestigeSupport.silentRotationManager.hasPendingAttack();
+    }
 
     public static boolean interactBlock(BlockHitResult hitResult) {
         return interactBlock(hitResult, Hand.MAIN_HAND);
     }
 
     public static boolean interactBlock(BlockHitResult hitResult, Hand hand) {
+        markUseAction();
         ActionResult result = mc.interactionManager.interactBlock(mc.player, hand, hitResult);
         if (!mc.player.isSpectator()) {
             PrestigeSupport.silentRotationManager.setActedThisTick(true);
@@ -35,14 +54,51 @@ public class PlayerInteractions implements MinecraftAccess {
         }
     }
 
-    public static void attackEntity(Entity target) {
-        if (mc.player == null || mc.getNetworkHandler() == null || target == null) {
-            return;
+    public static boolean requestAttack(Entity target) {
+        return requestAttack(target, shouldCrit(), null);
+    }
+
+    public static boolean requestAttack(Entity target, Runnable afterAttack) {
+        return requestAttack(target, shouldCrit(), afterAttack);
+    }
+
+    public static boolean requestAttack(Entity target, boolean wantCrit, Runnable afterAttack) {
+        return PrestigeSupport.silentRotationManager.queueAttack(target, wantCrit, afterAttack);
+    }
+
+    public static boolean shouldCrit() {
+        return mc.player != null
+            && mc.player.isSprinting()
+            && !mc.player.isOnGround()
+            && mc.player.fallDistance > 0.0F
+            && !mc.player.isClimbing()
+            && !mc.player.isSubmergedInWater()
+            && !mc.player.isInLava();
+    }
+
+    public static void prepareCritSprintReset() {
+        if (mc.player != null && mc.player.isSprinting()) {
+            // Vanilla sends STOP_SPRINTING at the start of this tick's movement packet, before
+            // the delayed attack packet on the following tick.
+            mc.player.setSprinting(false);
+        }
+    }
+
+    public static boolean attackEntity(Entity target) {
+        if (mc.player == null || mc.getNetworkHandler() == null || mc.interactionManager == null || target == null) {
+            return false;
         }
 
-        syncSelectedSlot();
+        long tick = ClientThreadUtils.getTime();
+        if (tick == lastAttackTick || tick == lastUseTick) {
+            return false;
+        }
+        lastAttackTick = tick;
 
-        // Keep the rotation packet first by only attacking after sendMovementPackets has flushed it.
+        // Reuse vanilla's slot ledger instead of keeping a second one. This orders a late
+        // slot change before the attack without sending a duplicate slot packet.
+        ((AccessorClientPlayerInteractionManager) mc.interactionManager).corzSyncSelectedSlot();
+
         mc.getNetworkHandler().sendPacket(PlayerInteractEntityC2SPacket.attack(target, mc.player.isSneaking()));
         mc.getNetworkHandler().sendPacket(new HandSwingC2SPacket(Hand.MAIN_HAND));
 
@@ -53,6 +109,7 @@ public class PlayerInteractions implements MinecraftAccess {
         }
 
         PrestigeSupport.silentRotationManager.setActedThisTick(true);
+        return true;
     }
 
     public static boolean interactItem(Hand hand) {
@@ -60,7 +117,10 @@ public class PlayerInteractions implements MinecraftAccess {
             return false;
         }
 
-        syncSelectedSlot();
+        markUseAction();
+        if (mc.interactionManager != null) {
+            ((AccessorClientPlayerInteractionManager) mc.interactionManager).corzSyncSelectedSlot();
+        }
 
         Rotation rotation = PrestigeSupport.silentRotationManager.getLockedRotation();
         if (rotation == null) {
@@ -87,19 +147,6 @@ public class PlayerInteractions implements MinecraftAccess {
         }
 
         return true;
-    }
-
-    private static void syncSelectedSlot() {
-        if (mc.player == null || mc.getNetworkHandler() == null) {
-            lastSyncedSlot = -1;
-            return;
-        }
-
-        int selectedSlot = mc.player.getInventory().getSelectedSlot();
-        if (selectedSlot != lastSyncedSlot) {
-            mc.getNetworkHandler().sendPacket(new UpdateSelectedSlotC2SPacket(selectedSlot));
-            lastSyncedSlot = selectedSlot;
-        }
     }
 
     public static void startGliding() {

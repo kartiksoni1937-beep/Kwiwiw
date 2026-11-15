@@ -1,6 +1,7 @@
 package com.corz.client.mixins;
 
 import com.corz.client.entity.ClientThreadUtils;
+import com.corz.client.categories.combat.AutoShieldBreaker;
 import com.corz.client.categories.mace.AutoMace;
 import com.corz.client.categories.player.AutoTotem;
 import com.corz.client.categories.combat.SilentAim;
@@ -30,6 +31,7 @@ import com.corz.client.categories.bots.SpawnerProtect;
 import com.corz.client.utils.Cooldown;
 import ai.auth.ModuleRegistry;
 import com.corz.client.utils.ScaffoldTrade;
+import com.corz.client.utils.prestige.PlayerInteractions;
 
 @Mixin({MinecraftClient.class})
 public class MixinMinecraftClient {
@@ -173,9 +175,25 @@ public class MixinMinecraftClient {
          return;
       }
 
+      if (PlayerInteractions.isUseActionThisTick()) {
+         callbackInfoReturnable.setReturnValue(false);
+         return;
+      }
+
+      // The queued combat action owns this tick's attack. Do not let a vanilla swing race it.
+      if (PlayerInteractions.isAttackPending() || PlayerInteractions.isAttackThisTick()) {
+         callbackInfoReturnable.setReturnValue(false);
+         return;
+      }
+
       AutoMace autoMace = (AutoMace)ModuleRegistry.getModule(AutoMace.class);
       if (autoMace != null && autoMace.isEnabled()) {
          autoMace.onDoAttack();
+      }
+
+      AutoShieldBreaker autoShieldBreaker = (AutoShieldBreaker)ModuleRegistry.getModule(AutoShieldBreaker.class);
+      if (autoShieldBreaker != null && autoShieldBreaker.isEnabled()) {
+         autoShieldBreaker.onDoAttack();
       }
 
       SilentAim silentAim = (SilentAim)ModuleRegistry.getModule(SilentAim.class);

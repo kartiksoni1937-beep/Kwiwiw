@@ -71,7 +71,7 @@ public class AutoMace extends Module implements RotationProvider {
     private Runnable pendingAction;
 
     public AutoMace() {
-        super("Mace", IconsPngType.COMBAT);
+        super("Auto Mace", IconsPngType.COMBAT);
         this.horizontalTargetDist = new DoubleSetting(
             "Horizontal Target Dist", "Swaps only with a target within this horizontal distance (blocks).", 5.0, 0.0, 6.0, 0.1
         );
@@ -205,7 +205,7 @@ public class AutoMace extends Module implements RotationProvider {
                     return null;
                 }
 
-                rotation = RotationUtil.getRotationTo(target.getEyePos());
+                rotation = RotationUtil.getRotationTo(target);
                 if (Math.abs(RotationUtil.wrapDegrees(rotation.getYaw() - mc.player.getYaw())) > this.maxYaw.getValue()) {
                     this.stunSlamQueued = false;
                     return null;
@@ -262,7 +262,7 @@ public class AutoMace extends Module implements RotationProvider {
                 return null;
             }
 
-            Rotation aimRotation = RotationUtil.getRotationTo(aimTarget.getEyePos());
+            Rotation aimRotation = RotationUtil.getRotationTo(aimTarget);
             if (Math.abs(RotationUtil.wrapDegrees(aimRotation.getYaw() - mc.player.getYaw())) > this.maxYaw.getValue()) {
                 return null;
             }
@@ -359,20 +359,24 @@ public class AutoMace extends Module implements RotationProvider {
     }
 
     private void queueAttack(PlayerEntity target, Runnable afterAttack) {
-        if (this.pendingAction == null) {
+        if (this.pendingAction == null && !this.attackingInternally) {
             this.pendingAction = () -> {
                 this.attackingInternally = true;
-                PlayerInteractions.attackEntity(target);
-                this.attackingInternally = false;
-                if (afterAttack != null) {
-                    afterAttack.run();
+                boolean queued = PlayerInteractions.requestAttack(target, () -> {
+                    this.attackingInternally = false;
+                    if (afterAttack != null) {
+                        afterAttack.run();
+                    }
+                });
+                if (!queued) {
+                    this.attackingInternally = false;
                 }
             };
         }
     }
 
     @Override
-    public void onMovementPacketSent() {
+    public void flushActions() {
         Runnable action = this.pendingAction;
         this.pendingAction = null;
         if (action != null) {

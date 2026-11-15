@@ -122,7 +122,9 @@ public class SilentAim extends Module implements RotationProvider {
     public boolean onSwingHandPre() {
         if (mc.currentScreen == null && mc.isWindowFocused()) {
             if (this.sendingAttack) {
-                return false;
+                // The attack is already queued for this tick. Cancel the vanilla swing so it
+                // cannot race the queued interact packet.
+                return true;
             } else if (!this.isKillAuraActive()) {
                 if (InventoryUtil.isSword(mc.player.getMainHandStack())
                     || mc.player.getMainHandStack().getItem() instanceof AxeItem
@@ -137,7 +139,7 @@ public class SilentAim extends Module implements RotationProvider {
                         Entity target = this.findTarget();
                         if (target != null) {
                             if (!this.exceedsAngleLimits(RotationUtil.getRotationTo(
-                                this.getAimPoint(target)
+                                target, this.getAimPoint(target)
                             ))) {
                                 this.pendingTarget = target;
                                 this.hitPending = true;
@@ -205,7 +207,7 @@ public class SilentAim extends Module implements RotationProvider {
     }
 
     @Override
-    public void onMovementPacketSent() {
+    public void flushActions() {
         Entity target = this.pendingAttackTarget;
         this.pendingAttackTarget = null;
         if (target != null) {
@@ -225,7 +227,7 @@ public class SilentAim extends Module implements RotationProvider {
                 || crosshairHit != null
                     && (crosshairHit.getType() == Type.MISS || crosshairHit.getType() == Type.BLOCK && InventoryUtil.isSword(mc.player.getMainHandStack()))) {
                 if (target != null && target.isAlive() && !(mc.player.distanceTo(target) > 3.0F) && mc.player.canSee(target) && !BlockUtil.isCobwebInLineOfSight(target)) {
-                    Rotation rotation = RotationUtil.getRotationTo(this.getAimPoint(target));
+                    Rotation rotation = RotationUtil.getRotationTo(target, this.getAimPoint(target));
                     return this.exceedsAngleLimits(rotation) ? null : rotation;
                 } else {
                     return null;
@@ -268,12 +270,17 @@ public class SilentAim extends Module implements RotationProvider {
     private void attackTarget(Entity target) {
         if (target != null) {
             this.sendingAttack = true;
-            PlayerInteractions.attackEntity(target);
-            this.sendingAttack = false;
+            boolean queued = PlayerInteractions.requestAttack(target, () -> this.sendingAttack = false);
+            if (!queued) {
+                this.sendingAttack = false;
+            }
         }
     }
 
     public boolean onMouseButton(int button, int action) {
+        if (this.sendingAttack) {
+            return false;
+        }
         if (mc.currentScreen == null && mc.isWindowFocused()) {
             if (!this.isKillAuraActive()) {
                 if (button == 0 && action == 1) {
@@ -285,7 +292,7 @@ public class SilentAim extends Module implements RotationProvider {
                         }
 
                         if (this.exceedsAngleLimits(RotationUtil.getRotationTo(
-                            this.getAimPoint(target)
+                            target, this.getAimPoint(target)
                         ))) {
                             return false;
                         }
@@ -311,7 +318,7 @@ public class SilentAim extends Module implements RotationProvider {
                     }
 
                     if (this.exceedsAngleLimits(RotationUtil.getRotationTo(
-                        this.getAimPoint(target)
+                        target, this.getAimPoint(target)
                     ))) {
                         return false;
                     }

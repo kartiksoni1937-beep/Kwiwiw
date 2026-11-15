@@ -347,7 +347,7 @@ public class AutoHitCrystal extends Module implements RotationProvider {
     }
 
     @Override
-    public void onMovementPacketSent() {
+    public void flushActions() {
         Runnable action = this.pendingAction;
         this.pendingAction = null;
         this.pendingRotation = null;
@@ -392,12 +392,9 @@ public class AutoHitCrystal extends Module implements RotationProvider {
 
     private void queueAttack(EndCrystalEntity crystal, Runnable afterAttack) {
         Rotation rotation = this.silentRotations.isEnabled()
-            ? PrestigeSupport.silentRotationManager.getRotationTo(crystal.getBoundingBox().getCenter())
+            ? PrestigeSupport.silentRotationManager.getRotationTo(crystal, crystal.getBoundingBox().getCenter())
             : null;
-        this.queueAction(() -> {
-            PlayerInteractions.attackEntity(crystal);
-            afterAttack.run();
-        }, rotation);
+        this.queueAction(() -> PlayerInteractions.requestAttack(crystal, false, afterAttack), rotation);
     }
 
     private void queueAction(Runnable action, Rotation rotation) {

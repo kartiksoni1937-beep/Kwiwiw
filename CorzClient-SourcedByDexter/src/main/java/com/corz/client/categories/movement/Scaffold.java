@@ -42,6 +42,7 @@ import com.corz.client.utils.IconsPngType;
 import com.corz.client.utils.PlayerScaffold;
 import com.corz.client.utils.ScaffoldTrade;
 import com.corz.client.utils.WeaknessGodApi;
+import com.corz.client.utils.prestige.PlayerInteractions;
 
 public class Scaffold extends Module implements WeaknessGodApi {
    private double nextTargetX;
@@ -149,7 +150,9 @@ public class Scaffold extends Module implements WeaknessGodApi {
             if (!this.aimSmoother.isFlag() || !(this.aimSmoother.getAmount(player.getYaw()) > 8.0)) {
                if (player.raycast(player.getBlockInteractionRange(), 1.0F, false) instanceof BlockHitResult blockHitResult && this.canOffsetBlock(player, blockHitResult)) {
                   if (this.canSelectedSlot(player)) {
-                     ClientThreadUtils.canOptionsInstanceForObject(this);
+                     if (ClientThreadUtils.canOptionsInstanceForObject(this)) {
+                        PlayerInteractions.markUseAction();
+                     }
                   }
                }
             }
